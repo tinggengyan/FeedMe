@@ -163,9 +163,15 @@ ${cleanContent.slice(0, 5000)} // 限制内容长度以避免超出token限制
       ],
       temperature: 0.3,
       max_tokens: 500,
+      stream: true,
     });
 
-    return completion.choices[0].message.content?.trim() || "无法生成摘要。";
+    let summaryContent = "";
+    for await (const chunk of completion) {
+        summaryContent += chunk.choices[0]?.delta?.content || "";
+    }
+
+    return summaryContent.trim() || "无法生成摘要。";
   } catch (error) {
     console.error("生成摘要时出错:", error);
     return "无法生成摘要。AI 模型暂时不可用。";
@@ -281,10 +287,12 @@ async function updateFeed(sourceUrl) {
 
     // 为新条目生成摘要
     const itemsWithSummaries = await Promise.all(
-      mergedItems.map(async (item) => {
+      mergedItems.map(async (item, index) => {
         // 如果是新条目且需要生成摘要
         if (newItemsForSummary.some((newItem) => newItem.link === item.link) && !item.summary) {
           try {
+            // Add a delay before calling generateSummary
+            await new Promise(resolve => setTimeout(resolve, index * 5000)); // 5 second delay per item
             const summary = await generateSummary(item.title, item.content || item.contentSnippet || "");
             return { ...item, summary };
           } catch (err) {
